@@ -36,8 +36,8 @@ impl KvStore {
     /// Gets the string value of a given string key.
     ///
     /// Returns `None` if the given key does not exist.
-    pub fn get(&self, key: String) -> Option<String> {
-        self.map.get(&key).cloned()
+    pub fn get(&self, key: &str) -> Option<String> {
+        self.map.get(key).cloned()
     }
 
     /// Remove a given key.

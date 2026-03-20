@@ -1,4 +1,5 @@
 use clap::{Parser, Subcommand};
+use kvs::KvStore;
 use std::process::exit;
 
 #[derive(Parser)]
@@ -22,18 +23,22 @@ enum Commands {
 
 fn main() {
     let cli = Cli::parse();
+    let mut store = KvStore::new();
     match cli.command {
-        Commands::Get { key } => {
-            eprintln!("unimplemented");
-            exit(1);
-        }
+        Commands::Get { key } => match store.get(&key) {
+            Some(value) => println!("{value}"),
+            None => {
+                eprintln!("Couldn't find a value for key {key}");
+                exit(1);
+            }
+        },
         Commands::Set { key, value } => {
-            eprintln!("unimplemented");
-            exit(1);
+            store.set(key, value);
         }
         Commands::Rm { key } => {
-            eprintln!("unimplemented");
-            exit(1);
+            store.remove(key);
         }
     }
+
+    exit(0);
 }
