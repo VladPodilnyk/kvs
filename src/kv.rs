@@ -1,5 +1,9 @@
+use serde::{Deserialize, Serialize};
+
 use crate::{KvsError, Result};
 use std::collections::HashMap;
+use std::fs::{self, File, OpenOptions};
+use std::io::{BufRead, BufReader};
 use std::path::PathBuf;
 
 /// The `KvStore` stores string key/value pairs.
@@ -19,9 +23,11 @@ use std::path::PathBuf;
 /// # Ok(())
 /// # }
 /// ```
-#[derive(Default)]
 pub struct KvStore {
-    map: HashMap<String, String>,
+    /// Directory for the log and other data.
+    path: PathBuf,
+    file: File,
+    cache: HashMap<String, String>,
 }
 
 impl KvStore {
@@ -33,7 +39,31 @@ impl KvStore {
     ///
     /// It propagates I/O or deserialization errors during the log replay.
     pub fn open(path: impl Into<PathBuf>) -> Result<KvStore> {
-        panic!("Not implemented");
+        let path = path.into();
+        if !fs::exists(&path)? {
+            fs::create_dir_all(&path)?;
+            let file = OpenOptions::new()
+                .create(true)
+                .write(true)
+                .append(true)
+                .open(&path)?;
+
+            return Ok(KvStore {
+                file,
+                path,
+                cache: HashMap::new(),
+            });
+        }
+
+        let file = OpenOptions::new()
+            .create(true)
+            .write(true)
+            .append(true)
+            .open(&path)?;
+
+        let mut cache = HashMap::new();
+        load(&file, &mut cache);
+        Ok(KvStore { path, file, cache })
     }
     /// Sets the value of a string key to a string.
     ///
@@ -71,5 +101,40 @@ impl KvStore {
     /// Clears stale entries in the log.
     pub fn compact(&mut self) -> Result<()> {
         panic!("Not implemented");
+    }
+}
+
+fn load(file: &File, data: &mut HashMap<String, String>) -> Result<()> {
+    let lines = BufReader::new(file).lines();
+    for line in lines.map_while(std::io::Result::ok) {
+        let cmd: Command = serde_json::from_str(&line)?;
+        match cmd {
+            Command::Set { key, value } => {
+                data.insert(key, value);
+            }
+            Command::Remove { key } => {
+                data.remove(&key);
+            }
+        }
+    }
+    Ok(())
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+enum Command {
+    Set { key: String, value: String },
+    Remove { key: String },
+}
+
+impl Command {
+    fn set(key: String, value: String) -> Command {
+        Command::Set {
+            key: key,
+            value: value,
+        }
+    }
+
+    fn remove(key: String) -> Command {
+        Command::Remove { key: key }
     }
 }
